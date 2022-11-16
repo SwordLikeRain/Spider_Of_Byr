@@ -17,8 +17,8 @@ def ReadFile():
         if len(url) != 0:
             if url[0].find('Whisper') != -1:
                 Whisper.append(url[0].strip())
-            elif url[0].find('JobInfo') != -1:
-                JobInfo.append(url[0].strip())
+            # elif url[0].find('JobInfo') != -1: # 暂停使用JobInfo，需要更新
+                # JobInfo.append(url[0].strip())
             else:
                 Others.append(url[0].strip())
 
@@ -29,10 +29,16 @@ def ReadFile():
 def ExcuteWhisper():
     if len(Whisper) != 0:
         file = open('{}_Whisper.txt'.format(datetime.now().strftime("%Y%m%d")), 'a', encoding='utf-8') # 结果存于"日期_Whisper.txt"中，追加写入
+        newer_file = open('{}_Whisper_Wait_Updating.txt'.format(datetime.now().strftime(
+            "%Y%m%d")), 'a', encoding='utf-8')  # 如果悄悄话近期内还有人回复，将链接存于"日期_Whisper.txt"中，追加写入
+
         for url in Whisper: # 逐个帖子分析
+            file.write(url+'\n') # 写入链接
             page_num = 1 # 帖子总页数
             now_page = 1 # 当前分析的帖子的页号
             comment_seq = 1 # 当前分析的评论的序号
+            Stime = '' # 发帖时间
+            Ctime = '' # 结帖时间
 
             browser.get(url) # 打开网页
 
@@ -46,6 +52,7 @@ def ExcuteWhisper():
                         By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.article > div.poster.media > div.media-content > div > h4")
                     send_time = browser.find_element(
                         By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.thread-header > div > div.column.is-7 > small")
+                    Stime = send_time.text
                     title_agree = browser.find_element(
                         By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.article > div.poster.media > div.media-right > span:nth-child(3)")
                     title_disagree = browser.find_element(
@@ -71,7 +78,7 @@ def ExcuteWhisper():
                         file.write("）")
                     file.write("\n")
                     # 帖子内容由Fliter()函数处理后写入
-                    Qtext = Fliter(subtitle.text)
+                    Qtext,NoMean = Fliter(subtitle.text) # NoMean用于占位
                     if len(Qtext) != 0:
                         file.write("Q："+Qtext)
 
@@ -85,7 +92,7 @@ def ExcuteWhisper():
                 while(comment_seq >= (now_page-1)*10 and comment_seq < now_page*10 and comment_seq < (now_page-1)*10+comment_limit):
                     comment = browser.find_element(By.ID, comment_seq)
                     comment_seq = comment_seq + 1
-                    Ctext = Fliter(comment.text)
+                    Ctext,Ctime = Fliter(comment.text)
                     if len(Ctext) != 0:
                         file.write("---------------------------\n")
                         file.write(Ctext)
@@ -96,9 +103,19 @@ def ExcuteWhisper():
                         By.CSS_SELECTOR, "#app > div > div > section.paginate > div:nth-child(3) > header > div:nth-child(4)").click()
                 now_page = now_page+1
 
+            # 判断帖子是否还可能被评论
+            Stime = datetime.strptime(Stime, "%Y-%m-%d %H:%M")
+            Ctime = datetime.strptime(Ctime, "%Y-%m-%d %H:%M")
+            if (Stime.hour >= 22 or Stime.hour <= 8):
+                if ((Ctime - Stime).total_seconds() / 3600) >= 12:
+                    newer_file.write(url)
+            else:
+                if ((Ctime - Stime).total_seconds() / 3600) >= 6:
+                    newer_file.write(url)
             file.write(
                 "---------------------------------------------------------------------------------------------------------------------------------------------------\n")
         file.close()
+        newer_file.close()
     return
 
 # 对评论内容和帖子内容处理，修改成所需样式，且过滤无意义评论/内容
@@ -107,10 +124,12 @@ def Fliter(raw_str):
     count = 0  # 记录未被过滤的评论行数
     result_str = "" # 返回处理好后的字符串
     rate = "" # 保存赞踩比
+    last_comment_time = "" # 最后一条评论的评论时间
     is_rated = False # 是否已经在result_str中保存了赞踩比rate的信息
     is_reply = False # 该字符串是否为帖子的评论（而不是帖子内容）
     for str in strs:
         str = re.sub('^--', '', str) # 过滤--
+        str = re.sub('^t', '', str, flasg=re.I)  # 过滤t，re.I不区分大小写
         str = re.sub('^rt', '', str, flags=re.I)  # 过滤rt，re.I不区分大小写
         str = re.sub('^[b|z|d]d', '', str, flags=re.I) # 过滤bd、zd、dd
         str = re.sub('\\[bbsemoji[0-9,]+\\]', '', str)  # 过滤无法识别的emoji、中括号的匹配需要在中括号前面加双斜杠\\
@@ -135,6 +154,11 @@ def Fliter(raw_str):
             if re.match('沙发|板凳|[0-9]+楼', str) is not None: # 判断该字符串是否为评论，是则判断成功
                 result_str = result_str+"A："
                 is_reply = True
+                data_search = re.search(
+                    '([0-9]{4}-[0-9]{2}-[0-9]{2}|今天)[ ]+[0-9]{2}:[0-9]{2}', str)  # 匹配时间字段，将该评论发布时间以last_comment_time返回
+                if data_search is not None:
+                    last_comment_time = data_search.group()
+                    last_comment_time = last_comment_time.replace('今天', datetime.now().strftime("%Y-%m-%d")) # 替换'今天'为日期
 
     if is_rated != True: # 录入赞踩比信息
         result_str = result_str[:-1]+rate+'\n'
@@ -142,7 +166,7 @@ def Fliter(raw_str):
         result_str = []
     elif result_str == '\n': # 过滤无效评论
         result_str = []
-    return result_str
+    return result_str,last_comment_time
 
 # 处理工作招聘告示
 def ExcuteJobInfo():
@@ -151,7 +175,7 @@ def ExcuteJobInfo():
             datetime.now().strftime("%Y%m%d")), 'a', encoding='utf-8')  # 结果存于"日期_JobInfo.txt"中，追加写入
 
         for url in JobInfo:
-
+            file.write(url+'\n') # 写入网址
             browser.get(url)
             time.sleep(1)
             # print(browser.page_source) # browser.page_source直接获取网页源码

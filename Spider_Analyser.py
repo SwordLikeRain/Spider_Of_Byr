@@ -1,5 +1,6 @@
 # 思路：当前目标为，自动处理输入的网址，利用selenium爬取数据、进行格式化处理后存储为需要的格式，处理完成后发送邮件给订阅的客户
-
+# 需要处理的，规划一个爬虫时间，其他分类的爬取规则，异常情况处理（超过两天？）
+import os
 import time
 from datetime import datetime
 import sys
@@ -23,6 +24,15 @@ def ReadFile():
                 Others.append(url[0].strip())
 
     f.close()
+    with open('{}_TmpSave.txt'.format(datetime.now().strftime("%Y%m%d")), 'w', encoding='utf-8') as f:
+        # f.write('JobInfo')
+        f.write('Others\n')
+        for url in Others:
+            f.write(url+' \n')
+        f.write("---------------------------------------------------------------------------------------------------------------------------------------------------\n")
+        f.write('Whisper\n')
+        for url in Whisper:
+            f.write(url+' \n')
     return
 
 # 处理悄悄话
@@ -104,14 +114,22 @@ def ExcuteWhisper():
                 now_page = now_page+1
 
             # 判断帖子是否还可能被评论
-            Stime = datetime.strptime(Stime, "%Y-%m-%d %H:%M")
-            Ctime = datetime.strptime(Ctime, "%Y-%m-%d %H:%M")
-            if (Stime.hour >= 22 or Stime.hour <= 8):
-                if ((Ctime - Stime).total_seconds() / 3600) >= 12:
-                    newer_file.write(url)
+            Nowtime = datetime.strptime(datetime.now().strftime("%Y-%m-%d %H:%M"), "%Y-%m-%d %H:%M") # 当前时间
+            try:
+                Sendtime = datetime.strptime(Stime, "%Y-%m-%d %H:%M") # 发帖时间，超过两天
+            except Exception as e:
+                Sendtime = datetime.strptime(Stime+" 12:00", "%Y-%m-%d %H:%M")  # 发帖时间
+            Endtime = Sendtime  # 否则以发帖时间为结帖时间
+            if Ctime != '':
+                Endtime = datetime.strptime(Ctime, "%Y-%m-%d %H:%M")
+            
+            if (Sendtime.hour >= 22 or Sendtime.hour <= 8): # 深夜贴
+                if ((Nowtime - Endtime).total_seconds() / 3600) <= 11:
+                    newer_file.write(url+' '+'\n')
             else:
-                if ((Ctime - Stime).total_seconds() / 3600) >= 6:
-                    newer_file.write(url)
+                if ((Nowtime - Endtime).total_seconds() / 3600) <= 6:
+                    newer_file.write(url+' '+'\n')
+                
             file.write(
                 "---------------------------------------------------------------------------------------------------------------------------------------------------\n")
         file.close()
@@ -129,7 +147,7 @@ def Fliter(raw_str):
     is_reply = False # 该字符串是否为帖子的评论（而不是帖子内容）
     for str in strs:
         str = re.sub('^--', '', str) # 过滤--
-        str = re.sub('^t', '', str, flasg=re.I)  # 过滤t，re.I不区分大小写
+        str = re.sub('^t', '', str, flags=re.I)  # 过滤t，re.I不区分大小写
         str = re.sub('^rt', '', str, flags=re.I)  # 过滤rt，re.I不区分大小写
         str = re.sub('^[b|z|d]d', '', str, flags=re.I) # 过滤bd、zd、dd
         str = re.sub('\\[bbsemoji[0-9,]+\\]', '', str)  # 过滤无法识别的emoji、中括号的匹配需要在中括号前面加双斜杠\\
@@ -197,7 +215,7 @@ def ExcuteOthrs():
     if len(Others) != 0:
         file = open('{}_Others.txt'.format(datetime.now().strftime("%Y%m%d")), 'a', encoding='utf-8')
         for url in Others:
-            file.write(url+"\n")
+            file.write(url+' '+"\n")
         file.close()
     return
 
@@ -222,9 +240,11 @@ if __name__ == "__main__":
     Whisper = []
     JobInfo=[]
     ReadFile()
-    ExcuteWhisper()
+
     ExcuteJobInfo()
     ExcuteOthrs()
+    ExcuteWhisper()
 
     # 关闭浏览器
     browser.quit()
+    os.remove('{}_TmpSave.txt'.format(datetime.now().strftime("%Y%m%d"))) # 正常退出，删除临时文件

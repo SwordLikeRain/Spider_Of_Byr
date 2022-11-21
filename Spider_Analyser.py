@@ -1,5 +1,24 @@
-# 思路：当前目标为，自动处理输入的网址，利用selenium爬取数据、进行格式化处理后存储为需要的格式，处理完成后发送邮件给订阅的客户
-# 需要处理的，规划一个爬虫时间，其他分类的爬取规则，异常情况处理（超过两天？）
+# 目标：
+#   自动处理输入的网址，利用selenium爬取数据、进行格式化处理后存储为需要的格式
+
+# version：1.0
+# Author：SwordLikeRain
+# Date：2022.11.21
+
+# 说明（只需要会用看输入输出部分即可）：
+#   输入：命令行执行时，输入保存待分析网页数据的文件名作为第一个参数
+#   程序执行：
+#   1.从输入文件按行提取出网址并分类为 Whisper和Others，保存分类结果为临时文件"日期_TmpSave.txt"
+#   2.将 Others的 url保存为"日期_Others.txt"中
+#   3.利用selenium，抓取 Whisper中每个帖子的所需信息，处理后存储在"日期_Whisper.txt"中
+#     如果帖子近期内还有人回复，将链接存于"日期_Whisper_Updating.txt"中
+#   4.一切运行结束后，删除临时文件"日期_TmpSave.txt"
+#   输出：1.正常运行：一般输出两个文件"日期_Others.txt"和"日期_Whisper.txt"
+#           如果 Whisper中有近期回复的帖子，额外输出文件"日期_Whisper_Updating.txt"
+#         2.运行错误中途退出：除去上述文件，额外存在文件"日期_TmpSave.txt"
+#         3.其他：如果帖子已经被删帖而无法访问网页，会在命令行中打印其 url
+#           如果需要，可以使用重定向获取结果。
+
 import os
 import time
 from datetime import datetime
@@ -9,23 +28,20 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 
 
-# 从文件中逐行获取网址并分类
+# 从文件中逐行获取网址并分类，生成用于处理错误的"日期_TmpSave.txt"文件
 def ReadFile():
-    f = open("{}".format(sys.argv[1]), "r", encoding="utf-8") # 打开文件名由命令行参数决定
+    # 1.从命令行参数的文件中获取url，分类分别保存在 Whisper和 Others中
+    with open("{}".format(sys.argv[1]), "r", encoding="utf-8") as f:
+        for line in f.readlines():
+            url = re.findall(r'https.* ', line)
+            if len(url) != 0:
+                if url[0].find('Whisper') != -1:
+                    Whisper.append(url[0].strip())
+                else:
+                    Others.append(url[0].strip())
 
-    for line in f.readlines():
-        url = re.findall(r'https.* ', line)
-        if len(url) != 0:
-            if url[0].find('Whisper') != -1:
-                Whisper.append(url[0].strip())
-            # elif url[0].find('JobInfo') != -1: # 暂停使用JobInfo，需要更新
-                # JobInfo.append(url[0].strip())
-            else:
-                Others.append(url[0].strip())
-
-    f.close()
+    # 2.保存分类结果为临时文件"日期_TmpSave.txt"，如果产生中断，便于修复
     with open('{}_TmpSave.txt'.format(datetime.now().strftime("%Y%m%d")), 'w', encoding='utf-8') as f:
-        # f.write('JobInfo')
         f.write('Others\n')
         for url in Others:
             f.write(url+' \n')
@@ -35,12 +51,16 @@ def ReadFile():
             f.write(url+' \n')
     return
 
-# 处理悄悄话
+# 处理悄悄话（Whisper）的 url，抓取每个帖子的所需信息，结果存储在"日期_Whisper.txt"中
+# 如果帖子近期内还有人回复，将链接存于"日期_Whisper_Updating.txt"中
 def ExcuteWhisper():
     if len(Whisper) != 0:
-        file = open('{}_Whisper.txt'.format(datetime.now().strftime("%Y%m%d")), 'a', encoding='utf-8') # 结果存于"日期_Whisper.txt"中，追加写入
+        # 结果存于"日期_Whisper.txt"中，追加写入
+        file = open('{}_Whisper.txt'.format(datetime.now().strftime("%Y%m%d")), 'a', encoding='utf-8') 
+
+        # 如果悄悄话近期内还有人回复，将链接存于"日期_Whisper_Updating.txt"中，追加写入
         newer_file = open('{}_Whisper_Wait_Updating.txt'.format(datetime.now().strftime(
-            "%Y%m%d")), 'a', encoding='utf-8')  # 如果悄悄话近期内还有人回复，将链接存于"日期_Whisper.txt"中，追加写入
+            "%Y%m%d")), 'a', encoding='utf-8')  
 
         for url in Whisper: # 逐个帖子分析
             
@@ -140,8 +160,9 @@ def ExcuteWhisper():
     return
 
 # 对评论内容和帖子内容处理，修改成所需样式，且过滤无意义评论/内容
+# 输入的 raw_str是一个由'\n'划分的字符串，用split()分割后处理评论的每一行
 def Fliter(raw_str):
-    strs = raw_str.split('\n') # raw_str是一个由'\n'划分的字符串，用split()分割后处理评论的每一行
+    strs = raw_str.split('\n') 
     count = 0  # 记录未被过滤的评论行数
     result_str = "" # 返回处理好后的字符串
     rate = "" # 保存赞踩比
@@ -149,12 +170,12 @@ def Fliter(raw_str):
     is_rated = False # 是否已经在result_str中保存了赞踩比rate的信息
     is_reply = False # 该字符串是否为帖子的评论（而不是帖子内容）
     for str in strs:
+        str = re.sub('\\[bbsemoji[0-9,]+\\]', '', str)  # 过滤无法识别的emoji、中括号的匹配需要在中括号前面加双斜杠\\
         str = re.sub('^--', '', str) # 过滤--
         str = re.sub('^t', '', str, flags=re.I)  # 过滤t，re.I不区分大小写
         str = re.sub('^rt', '', str, flags=re.I)  # 过滤rt，re.I不区分大小写
         str = re.sub('^[b|z|d]d', '', str, flags=re.I) # 过滤bd、zd、dd
-        str = re.sub('\\[bbsemoji[0-9,]+\\]', '', str)  # 过滤无法识别的emoji、中括号的匹配需要在中括号前面加双斜杠\\
-
+        
         if re.match('^[0-9]+[ ]+[0-9]+$', str) is not None:  # 判断成功，则本行信息为赞踩比，格式化后以字符串形式存在rate中
             agree_num = str.split(' ')[0] # 赞数
             disagree_num = str.split(' ')[1] # 踩数
@@ -189,31 +210,7 @@ def Fliter(raw_str):
         result_str = []
     return result_str,last_comment_time
 
-# 处理工作招聘告示
-def ExcuteJobInfo():
-    if len(JobInfo) != 0:
-        file = open('{}_JobInfo.txt'.format(
-            datetime.now().strftime("%Y%m%d")), 'a', encoding='utf-8')  # 结果存于"日期_JobInfo.txt"中，追加写入
-
-        for url in JobInfo:
-            file.write(url+'\n') # 写入网址
-            browser.get(url)
-            time.sleep(1)
-            # print(browser.page_source) # browser.page_source直接获取网页源码
-
-            # 获取标题和内容，直接写入
-            title = browser.find_elements(By.XPATH, "/html/head/title")
-            subtitle = browser.find_element(
-                By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.article > div.article-body.content")
-            file.write(title[0].text)
-            file.write("\n")
-            file.write(subtitle.text)
-            file.write("\n")
-            file.write("------------------------------------------")
-        file.close()
-    return
-
-
+# 非Whisper即为Others，将 Others的 url保存为"日期_Others.txt"中
 def ExcuteOthrs():
     if len(Others) != 0:
         file = open('{}_Others.txt'.format(datetime.now().strftime("%Y%m%d")), 'a', encoding='utf-8')
@@ -221,8 +218,6 @@ def ExcuteOthrs():
             file.write(url+' '+"\n")
         file.close()
     return
-
-
 
 if __name__ == "__main__":
     # 模拟一个手机界面，以绕开登录限制
@@ -238,17 +233,21 @@ if __name__ == "__main__":
     # 打开浏览器
     browser = webdriver.Chrome(executable_path='chromedriver.exe', chrome_options=options)
 
-    # 处理三类信息，悄悄话、招聘、其他
+    # 处理两类信息，悄悄话、其他
     Others = []
     Whisper = []
-    JobInfo=[]
     ReadFile()
 
-    ExcuteJobInfo()
     ExcuteOthrs()
     ExcuteWhisper()
 
     # 关闭浏览器
     browser.quit()
+
+    # 正常退出，删除临时文件
     if os.path.exists('{}_TmpSave.txt'.format(datetime.now().strftime("%Y%m%d"))):
-        os.remove('{}_TmpSave.txt'.format(datetime.now().strftime("%Y%m%d"))) # 正常退出，删除临时文件
+        os.remove('{}_TmpSave.txt'.format(datetime.now().strftime("%Y%m%d"))) 
+    with open('{}_Whisper_Wait_Updating.txt'.format(datetime.now().strftime("%Y%m%d")), 'r', encoding='utf-8') as f:
+        length=len(f.read())
+    if length == 0:
+        os.remove('{}_Whisper_Wait_Updating.txt'.format(datetime.now().strftime("%Y%m%d")))

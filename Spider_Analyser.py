@@ -5,18 +5,22 @@
 # Author：SwordLikeRain
 # Date：2022.11.21
 
-# 说明（只需要会用看输入输出部分即可）：
-#   输入：命令行执行时，输入保存待分析网页数据的文件名作为第一个参数
+# 说明：
+#   输入：
+#       命令行执行时，输入保存待分析网页数据的文件名作为第一个参数，输入文件后缀名应该为.txt
+#
 #   程序执行：
-#   1.从输入文件按行提取出网址并分类为 Whisper和Others，保存分类结果为临时文件"日期_TmpSave.txt"
-#   2.将 Others的 url保存为"日期_Others.txt"中
-#   3.利用selenium，抓取 Whisper中每个帖子的所需信息，处理后存储在"日期_Whisper.txt"中
-#     如果帖子近期内还有人回复，将链接存于"日期_Whisper_Updating.txt"中
-#   4.一切运行结束后，删除临时文件"日期_TmpSave.txt"
-#   输出：1.正常运行：一般输出两个文件"日期_Others.txt"和"日期_Whisper.txt"
-#           如果 Whisper中有近期回复的帖子，额外输出文件"日期_Whisper_Updating.txt"
-#         2.运行错误中途退出：除去上述文件，额外存在文件"日期_TmpSave.txt"
-#         3.其他：如果帖子已经被删帖而无法访问网页，会在命令行中打印其 url
+#       1.从输入文件按行提取出网址并分类为 Whisper和Others，保存分类结果为临时文件"日期_TmpSave.txt"
+#       2.将 Others的链接保存为"日期_Others.txt"中
+#       3.利用selenium，抓取 Whisper中每个帖子的所需信息，处理后存储在"日期_Whisper.txt"中
+#         如果帖子近期内还有人回复，将链接存于"日期_Whisper_Updating.txt"中
+#       4.一切运行结束后，删除临时文件"日期_TmpSave.txt"
+#
+#   输出：
+#       1.正常运行：一般输出两个文件"日期_Others.txt"和"日期_Whisper.txt"
+#         如果 Whisper中有近期回复的帖子，额外输出文件"日期_Whisper_Updating.txt"
+#       2.运行错误中途退出：除去上述文件，额外存在文件"日期_TmpSave.txt"
+#       3.其他：如果帖子已经被删帖而无法访问网页，会在命令行中打印其 url
 #           如果需要，可以使用重定向获取结果。
 
 import os
@@ -100,6 +104,7 @@ def ExcuteWhisper():
                         file.write(name.text)
                         file.write("\n")
                         file.write("T："+title.text)
+
                         # 赞踩比处理后再写入
                         if title_agree.text != 0 or title_disagree.text != 0:
                             file.write("（"+title_agree.text)
@@ -108,12 +113,13 @@ def ExcuteWhisper():
                         if title_agree.text != 0 or title_disagree.text != 0:
                             file.write("）")
                         file.write("\n")
-                        # 帖子内容由Fliter()函数处理后写入
+
+                        # 发帖内容由Fliter()函数处理后写入
                         Qtext,NoMean = Fliter(subtitle.text) # NoMean用于占位
                         if len(Qtext) != 0:
                             file.write("Q："+Qtext)
 
-                    # comment_limit本页评论数量，第一页特殊处理（因为第一页最多9个评论、其他页最多10个）
+                    # comment_limit为本页评论数量，第一页特殊处理（因为第一页最多9个评论、其他页最多10个）
                     comment_limit = len(browser.find_element(
                         By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.posts").find_elements_by_class_name("post"))
                     if now_page == 1:
@@ -169,14 +175,18 @@ def Fliter(raw_str):
     last_comment_time = "" # 最后一条评论的评论时间
     is_rated = False # 是否已经在result_str中保存了赞踩比rate的信息
     is_reply = False # 该字符串是否为帖子的评论（而不是帖子内容）
+
     for str in strs:
+
+        # 过滤符号
         str = re.sub('\\[bbsemoji[0-9,]+\\]', '', str)  # 过滤无法识别的emoji、中括号的匹配需要在中括号前面加双斜杠\\
         str = re.sub('^--', '', str) # 过滤--
         str = re.sub('^t', '', str, flags=re.I)  # 过滤t，re.I不区分大小写
         str = re.sub('^rt', '', str, flags=re.I)  # 过滤rt，re.I不区分大小写
         str = re.sub('^[b|z|d]d', '', str, flags=re.I) # 过滤bd、zd、dd
         
-        if re.match('^[0-9]+[ ]+[0-9]+$', str) is not None:  # 判断成功，则本行信息为赞踩比，格式化后以字符串形式存在rate中
+        # 判断成功，则本行信息为评论的赞踩比，格式化后以字符串形式存在rate中，之后添加在对应位置
+        if re.match('^[0-9]+[ ]+[0-9]+$', str) is not None:  
             agree_num = str.split(' ')[0] # 赞数
             disagree_num = str.split(' ')[1] # 踩数
             if int(agree_num) != 0 or int(disagree_num) != 0:
@@ -186,25 +196,33 @@ def Fliter(raw_str):
             if int(agree_num) != 0 or int(disagree_num) != 0:
                 rate = rate+'）'
 
-        elif len(str.strip()) != 0:  # 评论有效（未被过滤）
-            if re.match('【 在', str) is not None:  # 如果发现这个评论引用了其他评论则判断成功，提前录入赞踩比信息，以满足阅读要求。例如：【 在 IWhisper#992 的大作中提到: 】
+        # 评论有效（未被过滤）
+        elif len(str.strip()) != 0:
+
+            # 如果发现这个评论引用了其他评论则判断成功，提前录入赞踩比信息，以满足阅读要求。例如：【 在 IWhisper#992 的大作中提到: 】
+            if re.match('【 在', str) is not None: 
                 result_str = result_str[:-1]+rate+'\n'
                 is_rated = True
+
             result_str = result_str+str
             result_str = result_str+'\n'
             count = count + 1
-            if re.match('沙发|板凳|[0-9]+楼', str) is not None: # 判断该字符串是否为评论，是则判断成功
+
+            # 判断该字符串是否为评论开头，是则判断成功
+            if re.match('沙发|板凳|[0-9]+楼', str) is not None: 
                 result_str = result_str+"A："
                 is_reply = True
+
+                # 匹配时间字段，将该评论发布时间以last_comment_time返回
                 data_search = re.search(
-                    '([0-9]{4}-[0-9]{2}-[0-9]{2}|今天)[ ]+[0-9]{2}:[0-9]{2}', str)  # 匹配时间字段，将该评论发布时间以last_comment_time返回
+                    '([0-9]{4}-[0-9]{2}-[0-9]{2}|今天)[ ]+[0-9]{2}:[0-9]{2}', str)  
                 if data_search is not None:
                     last_comment_time = data_search.group()
                     last_comment_time = last_comment_time.replace('今天', datetime.now().strftime("%Y-%m-%d")) # 替换'今天'为日期
 
     if is_rated != True: # 录入赞踩比信息
         result_str = result_str[:-1]+rate+'\n'
-    if count == 2 and is_reply == True: # 过滤无效评论
+    if count == 2 and is_reply == True: # 过滤无效评论，该评论除了发评论人和发评论时间，其他信息均无效
         result_str = []
     elif result_str == '\n': # 过滤无效评论
         result_str = []

@@ -43,7 +43,7 @@ def ExcuteWhisper():
             "%Y%m%d")), 'a', encoding='utf-8')  # 如果悄悄话近期内还有人回复，将链接存于"日期_Whisper.txt"中，追加写入
 
         for url in Whisper: # 逐个帖子分析
-            file.write(url+'\n') # 写入链接
+            
             page_num = 1 # 帖子总页数
             now_page = 1 # 当前分析的帖子的页号
             comment_seq = 1 # 当前分析的评论的序号
@@ -51,87 +51,90 @@ def ExcuteWhisper():
             Ctime = '' # 结帖时间
 
             browser.get(url) # 打开网页
-
-            while now_page <= page_num:
-                time.sleep(1) # 等待网页加载
-
-                # 第一页特殊处理，得到发帖人名称name、发帖时间send_time、帖的赞数title_agree、踩数title_disagree
-                # 帖子总页数page_num、帖子标题title、正文subtitle
-                if now_page == 1:
-                    name = browser.find_element(
-                        By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.article > div.poster.media > div.media-content > div > h4")
-                    send_time = browser.find_element(
-                        By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.thread-header > div > div.column.is-7 > small")
-                    Stime = send_time.text
-                    title_agree = browser.find_element(
-                        By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.article > div.poster.media > div.media-right > span:nth-child(3)")
-                    title_disagree = browser.find_element(
-                        By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.article > div.poster.media > div.media-right > span:nth-child(4)")
-                    page_num = int(str(browser.find_element(
-                        By.CSS_SELECTOR, "#app > div > div > section.paginate > div:nth-child(3) > header > div:nth-child(3) > a").text)[2:].strip())
-                    title = browser.find_element(
-                        By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.thread-header > h2")
-                    subtitle = browser.find_element(
-                        By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.article > div.article-body.content")
-
-                    file.write(send_time.text)
-                    file.write("\n")
-                    file.write(name.text)
-                    file.write("\n")
-                    file.write("T："+title.text)
-                    # 赞踩比处理后再写入
-                    if title_agree.text != 0 or title_disagree.text != 0:
-                        file.write("（"+title_agree.text)
-                    if title_disagree.text != 0:
-                        file.write("："+title_disagree.text)
-                    if title_agree.text != 0 or title_disagree.text != 0:
-                        file.write("）")
-                    file.write("\n")
-                    # 帖子内容由Fliter()函数处理后写入
-                    Qtext,NoMean = Fliter(subtitle.text) # NoMean用于占位
-                    if len(Qtext) != 0:
-                        file.write("Q："+Qtext)
-
-                # comment_limit本页评论数量，第一页特殊处理（因为第一页最多9个评论、其他页最多10个）
-                comment_limit = len(browser.find_element(
-                    By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.posts").find_elements_by_class_name("post"))
-                if now_page == 1:
-                    comment_limit = comment_limit+1
-
-                # 获取评论内容comment并由Fliter()处理后写入
-                while(comment_seq >= (now_page-1)*10 and comment_seq < now_page*10 and comment_seq < (now_page-1)*10+comment_limit):
-                    comment = browser.find_element(By.ID, comment_seq)
-                    comment_seq = comment_seq + 1
-                    Ctext,Ctime = Fliter(comment.text)
-                    if len(Ctext) != 0:
-                        file.write("---------------------------\n")
-                        file.write(Ctext)
-
-                # 由于直接在链接中修改url无法实现翻页，定位后使用click()模拟翻页
-                if now_page < page_num:
-                    browser.find_element(
-                        By.CSS_SELECTOR, "#app > div > div > section.paginate > div:nth-child(3) > header > div:nth-child(4)").click()
-                now_page = now_page+1
-
-            # 判断帖子是否还可能被评论
-            Nowtime = datetime.strptime(datetime.now().strftime("%Y-%m-%d %H:%M"), "%Y-%m-%d %H:%M") # 当前时间
             try:
-                Sendtime = datetime.strptime(Stime, "%Y-%m-%d %H:%M") # 发帖时间，超过两天
-            except Exception as e:
-                Sendtime = datetime.strptime(Stime+" 12:00", "%Y-%m-%d %H:%M")  # 发帖时间
-            Endtime = Sendtime  # 否则以发帖时间为结帖时间
-            if Ctime != '':
-                Endtime = datetime.strptime(Ctime, "%Y-%m-%d %H:%M")
-            
-            if (Sendtime.hour >= 22 or Sendtime.hour <= 8): # 深夜贴
-                if ((Nowtime - Endtime).total_seconds() / 3600) <= 11:
-                    newer_file.write(url+' '+'\n')
-            else:
-                if ((Nowtime - Endtime).total_seconds() / 3600) <= 6:
-                    newer_file.write(url+' '+'\n')
+                while now_page <= page_num:
+                    time.sleep(1) # 等待网页加载
+
+                    # 第一页特殊处理，得到发帖人名称name、发帖时间send_time、帖的赞数title_agree、踩数title_disagree
+                    # 帖子总页数page_num、帖子标题title、正文subtitle
+                    if now_page == 1:
+                        name = browser.find_element(
+                            By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.article > div.poster.media > div.media-content > div > h4")
+                        send_time = browser.find_element(
+                            By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.thread-header > div > div.column.is-7 > small")
+                        Stime = send_time.text
+                        title_agree = browser.find_element(
+                            By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.article > div.poster.media > div.media-right > span:nth-child(3)")
+                        title_disagree = browser.find_element(
+                            By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.article > div.poster.media > div.media-right > span:nth-child(4)")
+                        page_num = int(str(browser.find_element(
+                            By.CSS_SELECTOR, "#app > div > div > section.paginate > div:nth-child(3) > header > div:nth-child(3) > a").text)[2:].strip())
+                        title = browser.find_element(
+                            By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.thread-header > h2")
+                        subtitle = browser.find_element(
+                            By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.article > div.article-body.content")
+                        
+                        file.write(url+'\n')  # 写入链接
+                        file.write(send_time.text)
+                        file.write("\n")
+                        file.write(name.text)
+                        file.write("\n")
+                        file.write("T："+title.text)
+                        # 赞踩比处理后再写入
+                        if title_agree.text != 0 or title_disagree.text != 0:
+                            file.write("（"+title_agree.text)
+                        if title_disagree.text != 0:
+                            file.write("："+title_disagree.text)
+                        if title_agree.text != 0 or title_disagree.text != 0:
+                            file.write("）")
+                        file.write("\n")
+                        # 帖子内容由Fliter()函数处理后写入
+                        Qtext,NoMean = Fliter(subtitle.text) # NoMean用于占位
+                        if len(Qtext) != 0:
+                            file.write("Q："+Qtext)
+
+                    # comment_limit本页评论数量，第一页特殊处理（因为第一页最多9个评论、其他页最多10个）
+                    comment_limit = len(browser.find_element(
+                        By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.posts").find_elements_by_class_name("post"))
+                    if now_page == 1:
+                        comment_limit = comment_limit+1
+
+                    # 获取评论内容comment并由Fliter()处理后写入
+                    while(comment_seq >= (now_page-1)*10 and comment_seq < now_page*10 and comment_seq < (now_page-1)*10+comment_limit):
+                        comment = browser.find_element(By.ID, comment_seq)
+                        comment_seq = comment_seq + 1
+                        Ctext,Ctime = Fliter(comment.text)
+                        if len(Ctext) != 0:
+                            file.write("---------------------------\n")
+                            file.write(Ctext)
+
+                    # 由于直接在链接中修改url无法实现翻页，定位后使用click()模拟翻页
+                    if now_page < page_num:
+                        browser.find_element(
+                            By.CSS_SELECTOR, "#app > div > div > section.paginate > div:nth-child(3) > header > div:nth-child(4)").click()
+                    now_page = now_page+1
+
+                # 判断帖子是否还可能被评论
+                Nowtime = datetime.strptime(datetime.now().strftime("%Y-%m-%d %H:%M"), "%Y-%m-%d %H:%M") # 当前时间
+                try:
+                    Sendtime = datetime.strptime(Stime, "%Y-%m-%d %H:%M") # 发帖时间，超过两天
+                except Exception as e:
+                    Sendtime = datetime.strptime(Stime+" 12:00", "%Y-%m-%d %H:%M")  # 发帖时间
+                Endtime = Sendtime  # 否则以发帖时间为结帖时间
+                if Ctime != '':
+                    Endtime = datetime.strptime(Ctime, "%Y-%m-%d %H:%M")
                 
-            file.write(
-                "---------------------------------------------------------------------------------------------------------------------------------------------------\n")
+                if (Sendtime.hour >= 22 or Sendtime.hour <= 8): # 深夜贴
+                    if ((Nowtime - Endtime).total_seconds() / 3600) <= 11:
+                        newer_file.write(url+' '+'\n')
+                else:
+                    if ((Nowtime - Endtime).total_seconds() / 3600) <= 6:
+                        newer_file.write(url+' '+'\n')
+                    
+                file.write(
+                    "---------------------------------------------------------------------------------------------------------------------------------------------------\n")
+            except: # 帖子打不开
+                print(url)
         file.close()
         newer_file.close()
     return
@@ -247,4 +250,5 @@ if __name__ == "__main__":
 
     # 关闭浏览器
     browser.quit()
-    os.remove('{}_TmpSave.txt'.format(datetime.now().strftime("%Y%m%d"))) # 正常退出，删除临时文件
+    if os.path.exists('{}_TmpSave.txt'.format(datetime.now().strftime("%Y%m%d"))):
+        os.remove('{}_TmpSave.txt'.format(datetime.now().strftime("%Y%m%d"))) # 正常退出，删除临时文件

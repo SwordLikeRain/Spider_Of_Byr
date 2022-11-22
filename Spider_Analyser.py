@@ -20,8 +20,7 @@
 #       1.正常运行：一般输出两个文件"日期_Others.txt"和"日期_Whisper.txt"
 #         如果 Whisper中有近期回复的帖子，额外输出文件"日期_Whisper_Updating.txt"
 #       2.运行错误中途退出：除去上述文件，额外存在文件"日期_TmpSave.txt"
-#       3.其他：如果帖子已经被删帖而无法访问网页，会在命令行中打印其 url
-#           如果需要，可以使用重定向获取结果。
+#       3.其他：如果帖子已经被删帖而无法访问网页，会生成"error.txt"文件
 
 import os
 import time
@@ -77,7 +76,7 @@ def ExcuteWhisper():
             browser.get(url) # 打开网页
             try:
                 while now_page <= page_num:
-                    time.sleep(1) # 等待网页加载
+                    time.sleep(2) # 等待网页加载
 
                     # 第一页特殊处理，得到发帖人名称name、发帖时间send_time、帖的赞数title_agree、踩数title_disagree
                     # 帖子总页数page_num、帖子标题title、正文subtitle
@@ -98,7 +97,7 @@ def ExcuteWhisper():
                         subtitle = browser.find_element(
                             By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.article > div.article-body.content")
                         
-                        file.write(url+'\n')  # 写入链接
+                        file.write(url+' \n')  # 写入链接
                         file.write(send_time.text)
                         file.write("\n")
                         file.write(name.text)
@@ -160,7 +159,8 @@ def ExcuteWhisper():
                 file.write(
                     "---------------------------------------------------------------------------------------------------------------------------------------------------\n")
             except: # 帖子打不开
-                print(url)
+                with open('error.txt', 'a', encoding='utf-8') as f:
+                    f.write(url+' \n')
         file.close()
         newer_file.close()
     return

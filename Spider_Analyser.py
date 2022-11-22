@@ -246,6 +246,7 @@ if __name__ == "__main__":
     mobileEmulation = {"deviceMetrics": {"width": WIDTH,
                                          "height": HEIGHT, "pixelRatio": PIXEL_RATIO}, "userAgent": UA}
     options = webdriver.ChromeOptions()
+    options.add_argument('--headless') # 无头模式，关闭浏览器显示
     options.add_experimental_option('mobileEmulation', mobileEmulation)
 
     # 打开浏览器

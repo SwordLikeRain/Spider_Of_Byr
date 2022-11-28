@@ -34,24 +34,27 @@ from selenium.webdriver.common.by import By
 # 从文件中逐行获取网址并分类，生成用于处理错误的"日期_TmpSave.txt"文件
 def ReadFile():
     # 1.从命令行参数的文件中获取url，分类分别保存在 Whisper和 Others中
+    # with open('data1.txt', "r", encoding="utf-8") as f:
     with open("{}".format(sys.argv[1]), "r", encoding="utf-8") as f:
         for line in f.readlines():
             url = re.findall(r'https.* ', line)
             if len(url) != 0:
                 if url[0].find('Whisper') != -1:
-                    Whisper.append(url[0].strip())
+                    # Whisper.append(url[0].strip())
+                    Whisper.append(line.strip())
                 else:
-                    Others.append(url[0].strip())
+                    # Others.append(url[0].strip())
+                    Others.append(line.strip())
 
     # 2.保存分类结果为临时文件"日期_TmpSave.txt"，如果产生中断，便于修复
     with open('{}_TmpSave.txt'.format(datetime.now().strftime("%Y%m%d")), 'w', encoding='utf-8') as f:
         f.write('Others\n')
         for url in Others:
-            f.write(url+' \n')
+            f.write(url.strip()+' \n')
         f.write("---------------------------------------------------------------------------------------------------------------------------------------------------\n")
         f.write('Whisper\n')
         for url in Whisper:
-            f.write(url+' \n')
+            f.write(url.strip()+' \n')
     return
 
 # 处理悄悄话（Whisper）的 url，抓取每个帖子的所需信息，结果存储在"日期_Whisper.txt"中
@@ -73,10 +76,11 @@ def ExcuteWhisper():
             Stime = '' # 发帖时间
             Ctime = '' # 结帖时间
 
-            browser.get(url) # 打开网页
+            address = (re.findall(r'https.* ', url))[0].strip()
+            browser.get(address) # 打开网页
             try:
                 while now_page <= page_num:
-                    time.sleep(2) # 等待网页加载
+                    time.sleep(1) # 等待网页加载
 
                     # 第一页特殊处理，得到发帖人名称name、发帖时间send_time、帖的赞数title_agree、踩数title_disagree
                     # 帖子总页数page_num、帖子标题title、正文subtitle
@@ -97,7 +101,7 @@ def ExcuteWhisper():
                         subtitle = browser.find_element(
                             By.CSS_SELECTOR, "#app > div > div > section.thread > div > div.article > div.article-body.content")
                         
-                        file.write(url+' \n')  # 写入链接
+                        file.write(url.strip()+' \n')  # 写入链接
                         file.write(send_time.text)
                         file.write("\n")
                         file.write(name.text)
@@ -144,23 +148,27 @@ def ExcuteWhisper():
                 try:
                     Sendtime = datetime.strptime(Stime, "%Y-%m-%d %H:%M") # 发帖时间，超过两天
                 except Exception as e:
-                    Sendtime = datetime.strptime(Stime+" 12:00", "%Y-%m-%d %H:%M")  # 发帖时间
+                    if '今天' in Stime:
+                        Stime = Stime.replace('今天', datetime.now().strftime("%Y-%m-%d"))  # 替换'今天'为日期
+                        Sendtime = datetime.strptime(Stime, "%Y-%m-%d %H:%M")  # 发帖时间
+                    else:
+                        Sendtime = datetime.strptime(Stime+" 12:00", "%Y-%m-%d %H:%M")  # 发帖时间
                 Endtime = Sendtime  # 否则以发帖时间为结帖时间
                 if Ctime != '':
                     Endtime = datetime.strptime(Ctime, "%Y-%m-%d %H:%M")
                 
                 if (Sendtime.hour >= 22 or Sendtime.hour <= 8): # 深夜贴
                     if ((Nowtime - Endtime).total_seconds() / 3600) <= 11:
-                        newer_file.write(url+' '+'\n')
+                        newer_file.write(url.strip()+' '+'\n')
                 else:
                     if ((Nowtime - Endtime).total_seconds() / 3600) <= 6:
-                        newer_file.write(url+' '+'\n')
+                        newer_file.write(url.strip()+' '+'\n')
                     
                 file.write(
                     "---------------------------------------------------------------------------------------------------------------------------------------------------\n")
             except: # 帖子打不开
                 with open('error.txt', 'a', encoding='utf-8') as f:
-                    f.write(url+' \n')
+                    f.write(url.strip()+' \n')
         file.close()
         newer_file.close()
     return
@@ -233,7 +241,7 @@ def ExcuteOthrs():
     if len(Others) != 0:
         file = open('{}_Others.txt'.format(datetime.now().strftime("%Y%m%d")), 'a', encoding='utf-8')
         for url in Others:
-            file.write(url+' '+"\n")
+            file.write(url.strip()+' '+"\n")
         file.close()
     return
 

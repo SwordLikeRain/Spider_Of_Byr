@@ -245,6 +245,11 @@ def ExcuteOthrs():
         file.close()
     return
 
+def CreateDir():
+    dir = "db"+time.strftime("%Y%m%d", time.localtime())[2:]
+    if not os.path.exists(dir):
+        os.mkdir(dir)
+
 if __name__ == "__main__":
     # 模拟一个手机界面，以绕开登录限制
     WIDTH = 320
@@ -278,3 +283,5 @@ if __name__ == "__main__":
         length=len(f.read())
     if length == 0:
         os.remove('{}_Whisper_Wait_Updating.txt'.format(datetime.now().strftime("%Y%m%d")))
+
+    CreateDir()

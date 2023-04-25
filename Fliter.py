@@ -38,7 +38,7 @@ def Excute_Whisper():
         line = lines[i] # 本行内容
         i += 1
         graph += (line+'\n') # 将本行内容添加到帖子中
-        if line[:10] == '----------' and len(line) >= 50: # 下一个帖子的分隔符
+        if line[:10] == '----------' and len(line) >= 45: # 下一个帖子的分隔符
             seq = 0
             while seq < len(authors): # 寻找是否已经保存该帖，依据发帖人和发帖问题筛选，都相同则认为为同一帖
                 if authors[seq] == author and questions[seq] == question:

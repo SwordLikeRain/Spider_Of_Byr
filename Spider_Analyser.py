@@ -1,9 +1,9 @@
 # 目标：
 #   自动处理输入的网址，利用selenium爬取数据、进行格式化处理后存储为需要的格式
 
-# version：1.0
+# version：1.0->1.1
 # Author：SwordLikeRain
-# Date：2022.11.21
+# Date：2022.11.21->2023.04.27
 
 # 说明：
 #   输入：
@@ -15,12 +15,17 @@
 #       3.利用selenium，抓取 Whisper中每个帖子的所需信息，处理后存储在"日期_Whisper.txt"中
 #         如果帖子近期内还有人回复，将链接存于"日期_Whisper_Updating.txt"中
 #       4.一切运行结束后，删除临时文件"日期_TmpSave.txt"
+#       5.移动保存处理好的文件到'db日期'目录，生成下一次的'data.txt'文件（一般由"日期_Whisper_Updating.txt"而来）
 #
 #   输出：
-#       1.正常运行：一般输出两个文件"日期_Others.txt"和"日期_Whisper.txt"
-#         如果 Whisper中有近期回复的帖子，额外输出文件"日期_Whisper_Updating.txt"
-#       2.运行错误中途退出：除去上述文件，额外存在文件"日期_TmpSave.txt"
-#       3.其他：如果帖子已经被删帖而无法访问网页，会生成"error.txt"文件
+#       1.正常运行：
+#         输出两个文件"日期_Others.txt"和"日期_Whisper.txt"，与原始的输入文件（通常是'data.txt'）共同保存在'db日期'目录下
+#         如果 Whisper中有近期回复的帖子，这些帖子的链接会保存在当前文件夹下新产生的'data.txt'中，以便下一次运行时继续处理
+#         如果没有，会生成一个新的空的'data.txt'文件，以方便下一次操作
+#       2.运行错误中途退出：除去上述文件，额外存在文件"日期_TmpSave.txt"，所有文件都不会被移动到'db日期'目录下
+#       3.其他：如果帖子已经被删帖而无法访问网页，会生成"error.txt"文件，并保存在'db日期'目录下
+#   注意：
+#       一天内多次使用本程序，并不会导致之前的结果被删除，而是追加补充，都存于"日期_Whisper.txt"，逻辑见CreateAndMove()函数
 
 import os
 import time
@@ -245,10 +250,73 @@ def ExcuteOthrs():
         file.close()
     return
 
-def CreateDir():
-    dir = "db"+time.strftime("%Y%m%d", time.localtime())[2:]
+# 文件善后，移动保存处理好的文件到'db日期'目录，生成下一次的'data.txt'文件
+def CreateAndMove():
+    # 如果不存在'db日期'目录，创建目录
+    dir = "db"+datetime.now().strftime("%Y%m%d")[2:]
     if not os.path.exists(dir):
         os.mkdir(dir)
+
+    # 将文件移动到指定目录
+    Whisper_Address = '{}_Whisper.txt'.format(datetime.now().strftime("%Y%m%d"))
+    Other_Address = '{}_Others.txt'.format(datetime.now().strftime("%Y%m%d"))
+    Temp_Address = '{}_Whisper_Wait_Updating.txt'.format(datetime.now().strftime("%Y%m%d"))
+
+    # 如果'日期_Whisper.txt'存在，输出行数
+    # 检测'db日期'目录是否存在'日期_Whisper.txt'，如果文件已经存在，将目前'日期_Whisper.txt'作为原文件的追加，否则直接移动
+    if os.path.exists(Whisper_Address):
+        # 输出'日期_Whisper.txt'的行数
+        with open(Whisper_Address, 'r', encoding='utf-8') as f:
+            print('Whisper.txt has {} lines.'.format(len(f.readlines())))
+
+        # 检测'db日期'目录是否存在'日期_Whisper.txt'，如果文件已经存在，将目前'日期_Whisper.txt'作为原文件的追加，否则直接移动
+        if os.path.exists(dir+'/'+Whisper_Address):
+            with open(dir+'/'+Whisper_Address, 'a', encoding='utf-8') as f:
+                with open(Whisper_Address, 'r', encoding='utf-8') as f1:
+                    for line in f1.readlines():
+                        f.write(line)
+            os.remove(Whisper_Address)
+        else:
+            os.rename(Whisper_Address, dir+'/'+Whisper_Address)
+
+    # 如果'日期_Others.txt'存在，输出行数
+    # 将目前'日期_Others.txt'直接移动到'db日期'目录
+    if os.path.exists(Other_Address):
+        with open(Other_Address, 'r', encoding='utf-8') as f:
+            print('Others.txt has {} lines.'.format(len(f.readlines())))
+        os.rename(Other_Address, dir+'/'+Other_Address)
+
+    # 'data.txt'数据更新
+    if os.path.exists(dir+'/'+'data.txt'):
+        os.remove('data.txt')
+    else:
+        os.rename('data.txt', dir+'/'+'data.txt')
+
+    # 'Temp.txt'如果存在，成为新的'data.txt'
+    # 否则，没有更多数据需要获取，创建新的'data.txt'
+    if os.path.exists(Temp_Address):
+        os.rename(Temp_Address, 'data.txt')
+        print('Temp file detected!')
+    else:
+        with open('data.txt', 'w', encoding='utf-8') as f:
+            f.write('')
+        print('New data.txt created!')
+
+    # 如果'error.txt'存在，输出行数
+    # 检测'db日期'目录是否存在'error.txt'，如果文件已经存在，将目前'error.txt'作为原文件的追加，否则直接移动
+    if os.path.exists('error.txt'):
+        with open('error.txt', 'r', encoding='utf-8') as f:
+            print('error.txt detected with {} lines.'.format(len(f.readlines())))
+
+        if os.path.exists(dir+'/'+'error.txt'):
+            with open(dir+'/'+'error.txt', 'a', encoding='utf-8') as f:
+                with open('error.txt', 'r', encoding='utf-8') as f1:
+                    for line in f1.readlines():
+                        f.write(line)
+            os.remove('error.txt')
+        else:
+            os.rename('error.txt', dir+'/'+'error.txt')
+
 
 if __name__ == "__main__":
     # 模拟一个手机界面，以绕开登录限制
@@ -284,4 +352,5 @@ if __name__ == "__main__":
     if length == 0:
         os.remove('{}_Whisper_Wait_Updating.txt'.format(datetime.now().strftime("%Y%m%d")))
 
-    CreateDir()
+    # 善后处理
+    CreateAndMove()

@@ -75,8 +75,11 @@ def ExcuteWhisper():
         newer_file = open('{}_Whisper_Wait_Updating.txt'.format(datetime.now().strftime(
             "%Y%m%d")), 'a', encoding='utf-8')  
 
+        cnt = 0
         for url in Whisper: # 逐个帖子分析
-            
+            cnt = cnt + 1
+            if cnt % 10 == 0:
+                print(str(cnt) + " / " + str(len(Whisper)))
             page_num = 1 # 帖子总页数
             now_page = 1 # 当前分析的帖子的页号
             comment_seq = 1 # 当前分析的评论的序号
